@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <cstddef>
 
 struct Position
 {
@@ -42,7 +43,12 @@ bool IsInsideMap(const Position& position);
 
 bool CheckInitialPositions(const std::vector<Robot>& robots,const std::vector<Base>& bases);
 
-int main() {
+bool CheckUniqueRobotIds(const std::vector<Robot>& robots);
+
+bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<Base>& bases);
+
+int main() 
+{
     std::cout << "Welcome RoboMaster Tactical Simulator" << std::endl;
 
     std::vector<Base> bases = CreateBases();
@@ -53,6 +59,16 @@ int main() {
     return 1;
     }
 
+    if (CheckUniqueRobotIds(robots) == false)
+    {
+        return 1;
+    }    
+    
+    if (CheckInitialResources(robots, bases) == false)
+    {
+        return 1;
+    }
+    
     std::cout << "Initial positions valid." << std::endl;
     PrintBases(bases);
 
@@ -108,9 +124,9 @@ std::vector<Base> CreateBases()
 
 void PrintBases(const std::vector<Base>& bases)
 {
-    for (const Base& base : bases)
+    for (const Base& basecopy : bases)
     {
-        if(base.team == Team::Red)
+        if(basecopy.team == Team::Red)
         {
             std::cout << "Red";
         }
@@ -119,8 +135,8 @@ void PrintBases(const std::vector<Base>& bases)
             std::cout << "Blue";
         }
         std::cout << " base" << std::endl;
-        std::cout << "position: (" << base.position.x << ", " << base.position.y << ")" << std::endl;
-        std::cout << "base HP: " << base.hp << std::endl;
+        std::cout << "position: (" << basecopy.position.x << ", " << basecopy.position.y << ")" << std::endl;
+        std::cout << "base HP: " << basecopy.hp << std::endl;
     }
 }
 
@@ -161,6 +177,59 @@ bool CheckInitialPositions(const std::vector<Robot>& robots,const std::vector<Ba
                 std::cerr << "Blue";
             }
             std::cerr << "Base outside map: ("<< basecopy.position.x << ", "<< basecopy.position.y << ")" << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CheckUniqueRobotIds(const std::vector<Robot>& robots)
+{
+    for (std::size_t i = 0; i < robots.size(); ++i)
+    {
+        for (std::size_t j = i + 1; j < robots.size(); ++j)
+        {
+            if (robots[i].team == robots[j].team && robots[i].id == robots[j].id)
+            {
+                std::cerr << "repetition in" << robots[i].id << "and" << robots[j].id << std::endl;
+                return false;
+            }
+        }
+    
+    }
+
+    return true;
+}
+
+bool CheckInitialResources(const std::vector<Robot>& robots,const std::vector<Base>& bases)
+{
+    for (const Robot& robotcopy : robots)
+    {
+        if(!(robotcopy.hp > 0 && robotcopy.ammo >= 0 && robotcopy.actionPoints >= 0 ))
+        {
+            if(!(robotcopy.hp > 0 ))
+            {
+                std::cerr << "The robot's hp should be larger than 0 " << std::endl;
+                return false;
+            }
+            if(!(robotcopy.ammo >= 0 ))
+            {
+                std::cerr << "The ammo should be a natural number " << std::endl;
+                return false;
+            }
+            if(!(robotcopy.actionPoints >= 0 ))
+            {
+                std::cerr << "The actionPoints should be a natural number " << std::endl;
+                return false;
+            }
+        }
+    }
+    for (const Base& basecopy : bases)
+    {
+        if(!(basecopy.hp > 0))
+        {
+            std::cerr << "The base's hp should be larger than 0 " << std::endl;
             return false;
         }
     }
