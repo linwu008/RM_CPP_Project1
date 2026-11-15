@@ -23,20 +23,23 @@ struct Robot
     int actionPoints;
 };
 
+void PrintRobots(const std::vector<Robot>& robots);
+
+std::vector<Robot> CreateRobots();
 
 int main() {
     std::cout << "Welcome RoboMaster Tactical Simulator" << std::endl;
 
-    Robot redRobot1{1, Team::Red, {1,7}, 100, 50, 3};
-    Robot redRobot2{2, Team::Red, {1,9}, 100, 50, 3};
-    Robot redRobot3{3, Team::Red, {1,11}, 100, 50, 3};
-    Robot blueRobot1{1, Team::Blue, {27,8},100,50,3};
-    Robot blueRobot2{2, Team::Blue, {27,6},100,50,3};
-    Robot blueRobot3{3, Team::Blue, {27,4},100,50,3};
-
-    std::vector<Robot> robots{redRobot1, blueRobot1, redRobot2, blueRobot2, redRobot3, blueRobot3};
-
+    std::vector<Robot> robots = CreateRobots();
     std::cout << "Robots count: " << robots.size() << std::endl;
+
+    PrintRobots(robots);
+
+    return 0;
+}
+
+void PrintRobots(const std::vector<Robot>& robots)
+{
     for (const Robot& robotcopy : robots)
     {
         if(robotcopy.team == Team::Red)
@@ -53,6 +56,17 @@ int main() {
         std::cout << "robot Ammo: " << robotcopy.ammo << std::endl;
         std::cout << "robot Action Points: " << robotcopy.actionPoints << std::endl;
     }
-    
-    return 0;
+}
+
+std::vector<Robot> CreateRobots()
+{
+    Robot redRobot1{1, Team::Red, {1,7}, 100, 50, 3};
+    Robot redRobot2{2, Team::Red, {1,9}, 100, 50, 3};
+    Robot redRobot3{3, Team::Red, {1,11}, 100, 50, 3};
+    Robot blueRobot1{1, Team::Blue, {27,8},100,50,3};
+    Robot blueRobot2{2, Team::Blue, {27,6},100,50,3};
+    Robot blueRobot3{3, Team::Blue, {27,4},100,50,3};
+
+    std::vector<Robot> robots{redRobot1, blueRobot1, redRobot2, blueRobot2, redRobot3, blueRobot3};
+    return robots;
 }
