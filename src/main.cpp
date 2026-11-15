@@ -30,21 +30,32 @@ struct Base
     int hp;
 };
 
-std::vector<Base> CreateBases();
+std::vector<Robot> CreateRobots();
 
 void PrintRobots(const std::vector<Robot>& robots);
 
+std::vector<Base> CreateBases();
+
 void PrintBases(const std::vector<Base>& bases);
 
-std::vector<Robot> CreateRobots();
+bool IsInsideMap(const Position& position);
+
+bool CheckInitialPositions(const std::vector<Robot>& robots,const std::vector<Base>& bases);
 
 int main() {
     std::cout << "Welcome RoboMaster Tactical Simulator" << std::endl;
 
     std::vector<Base> bases = CreateBases();
+    std::vector<Robot> robots = CreateRobots();
+
+    if (CheckInitialPositions(robots, bases) == false)
+    {
+    return 1;
+    }
+
+    std::cout << "Initial positions valid." << std::endl;
     PrintBases(bases);
 
-    std::vector<Robot> robots = CreateRobots();
     std::cout << "Robots count: " << robots.size() << std::endl;
 
     PrintRobots(robots);
@@ -85,7 +96,6 @@ std::vector<Robot> CreateRobots()
     return robots;
 }
 
-
 std::vector<Base> CreateBases()
 {
     Base redbase{ Team::Red , {2.00,7.50}, 1000 };
@@ -94,6 +104,7 @@ std::vector<Base> CreateBases()
     std::vector<Base> bases{redbase, bluebase};
     return bases;
 }
+
 
 void PrintBases(const std::vector<Base>& bases)
 {
@@ -111,4 +122,48 @@ void PrintBases(const std::vector<Base>& bases)
         std::cout << "position: (" << base.position.x << ", " << base.position.y << ")" << std::endl;
         std::cout << "base HP: " << base.hp << std::endl;
     }
+}
+
+bool IsInsideMap(const Position& position)
+{
+    return position.x >= 0 && position.x <= 28 && position.y >= 0 && position.y <= 15;
+}
+
+bool CheckInitialPositions(const std::vector<Robot>& robots,const std::vector<Base>& bases)
+{
+    for (const Robot& robotcopy : robots)
+    {
+        if(IsInsideMap(robotcopy.position) == 0)
+        {
+            if (robotcopy.team == Team::Red)
+            {
+                std::cerr << "Red";
+            }
+            else
+            {
+                std::cerr << "Blue";
+            }
+            std::cerr << "Robot " << robotcopy.id << "outside map: ("<< robotcopy.position.x << ", "<< robotcopy.position.y << ")" << std::endl;
+            return false;
+        }
+    }
+
+    for (const Base& basecopy : bases)
+    {
+        if(IsInsideMap(basecopy.position) == 0)
+        {
+            if (basecopy.team == Team::Red)
+            {
+                std::cerr << "Red";
+            }
+            else
+            {
+                std::cerr << "Blue";
+            }
+            std::cerr << "Base outside map: ("<< basecopy.position.x << ", "<< basecopy.position.y << ")" << std::endl;
+            return false;
+        }
+    }
+
+    return true;
 }
