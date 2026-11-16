@@ -4,6 +4,7 @@
 
 #include <sstream>
 #include <string>
+#include <limits>
 
 int main()
 {
@@ -108,16 +109,16 @@ int main()
     changedBases.back().position.x = 28.1;
     expectCheck("base outside map", [&] { return CheckInitialPositions(robots, changedBases, outposts); }, false);
     changedRobots = robots;
-    changedRobots.back().hp = 0;
+    changedRobots.back() = Robot{3, Team::Blue, {27, 4}, 0, 50, 3};
     expectCheck("robot zero initial HP", [&] { return CheckInitialResources(changedRobots, bases, outposts); }, false);
     changedBases = bases;
     changedBases.front().hp = 0;
     expectCheck("base zero initial HP", [&] { return CheckInitialResources(robots, changedBases, outposts); }, false);
     changedRobots = robots;
-    changedRobots.back().ammo = 0;
+    changedRobots.back() = Robot{3, Team::Blue, {27, 4}, 100, 0, 3};
     changedRobots.back().actionPoints = 0;
     expectCheck("zero robot ammo and AP", [&] { return CheckInitialResources(changedRobots, bases, outposts); }, true);
-    changedRobots.back().ammo = -1;
+    changedRobots.back() = Robot{3, Team::Blue, {27, 4}, 100, -1, 0};
     expectCheck("negative robot ammo", [&] { return CheckInitialResources(changedRobots, bases, outposts); }, false);
     changedRobots = robots;
     changedRobots.back().actionPoints = -1;
@@ -126,6 +127,72 @@ int main()
     changedRobots = robots;
     changedRobots.back().id = 2;
     expectCheck("later same-team duplicate ID", [&] { return CheckUniqueRobotIds(changedRobots); }, false);
+
+    struct DamageCase
+    {
+        const char* label;
+        int initialHp;
+        int damage;
+        int expectedHp;
+    };
+    const DamageCase damageCases[] = {
+        {"ordinary damage applies once", 100, 30, 70},
+        {"exact lethal damage", 100, 100, 0},
+        {"overkill stops at zero", 100, 150, 0},
+        {"zero damage preserves HP", 100, 0, 100},
+        {"negative damage preserves HP", 100, -20, 100},
+        {"damage to dead robot", 0, 30, 0},
+        {"negative damage to dead robot", 0, -20, 0},
+        {"one HP lethal damage", 1, 1, 0},
+        {"maximum integer damage", 100, std::numeric_limits<int>::max(), 0},
+        {"minimum integer damage", 100, std::numeric_limits<int>::min(), 100}
+    };
+    for (const DamageCase& test : damageCases)
+    {
+        Robot robot{1, Team::Red, {1, 7}, test.initialHp, 50, 3};
+        robot.TakeDamage(test.damage);
+        expect(test.label, robot.GetHp() == test.expectedHp);
+    }
+
+    Robot repeatedlyHit{1, Team::Red, {1, 7}, 100, 50, 3};
+    repeatedlyHit.TakeDamage(30);
+    repeatedlyHit.TakeDamage(30);
+    expect("separate calls accumulate damage", repeatedlyHit.GetHp() == 40);
+
+    Robot firstRobot{1, Team::Red, {1, 7}, 100, 50, 3};
+    Robot secondRobot{1, Team::Blue, {27, 8}, 100, 50, 3};
+    firstRobot.TakeDamage(35);
+    expect("damage changes only the selected robot",
+           firstRobot.GetHp() == 65 && secondRobot.GetHp() == 100);
+
+    Robot loadedRobot{1, Team::Red, {1, 7}, 100, 50, 3};
+    const bool shotSucceeded = loadedRobot.TryConsumeAmmo();
+    expect("single shot consumes one round", shotSucceeded && loadedRobot.GetAmmo() == 49);
+
+    Robot lastRoundRobot{1, Team::Red, {1, 7}, 100, 1, 3};
+    const bool lastShotSucceeded = lastRoundRobot.TryConsumeAmmo();
+    expect("last round can be consumed", lastShotSucceeded && lastRoundRobot.GetAmmo() == 0);
+    const bool extraShotSucceeded = lastRoundRobot.TryConsumeAmmo();
+    expect("shot after last round fails", !extraShotSucceeded && lastRoundRobot.GetAmmo() == 0);
+
+    Robot emptyRobot{1, Team::Red, {1, 7}, 100, 0, 3};
+    const bool emptyShotSucceeded = emptyRobot.TryConsumeAmmo();
+    expect("empty magazine preserves zero", !emptyShotSucceeded && emptyRobot.GetAmmo() == 0);
+
+    Robot threeRoundRobot{1, Team::Red, {1, 7}, 100, 3, 3};
+    const bool firstShot = threeRoundRobot.TryConsumeAmmo();
+    const bool secondShot = threeRoundRobot.TryConsumeAmmo();
+    const bool thirdShot = threeRoundRobot.TryConsumeAmmo();
+    expect("three calls consume three rounds",
+           firstShot && secondShot && thirdShot && threeRoundRobot.GetAmmo() == 0);
+    const bool fourthShot = threeRoundRobot.TryConsumeAmmo();
+    expect("fourth shot with three rounds fails", !fourthShot && threeRoundRobot.GetAmmo() == 0);
+
+    Robot selectedRobot{1, Team::Red, {1, 7}, 100, 50, 3};
+    Robot otherRobot{1, Team::Blue, {27, 8}, 100, 50, 3};
+    const bool selectedShot = selectedRobot.TryConsumeAmmo();
+    expect("only selected robot consumes ammo",
+           selectedShot && selectedRobot.GetAmmo() == 49 && otherRobot.GetAmmo() == 50);
 
     std::cout << total - failed << '/' << total << " checks passed\n";
     return failed == 0 ? 0 : 1;

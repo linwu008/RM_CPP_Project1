@@ -14,14 +14,67 @@ enum class Team  //阵营
     Blue
 };
 
-struct Robot  //机器人各项数据
+class Robot  //类：机器人各项数据
 {
+    public:
+    Robot(int robotId, Team robotTeam, Position robotPosition, int initialHp, int initialAmmo, int initialActionPoints)
+    /*定义构造机器人函数*/
+        : id(robotId),
+          team(robotTeam),
+          position(robotPosition),
+          actionPoints(initialActionPoints),
+          hp(initialHp),
+          ammo(initialAmmo)
+    {
+    }
+    int GetHp() const //hp调用接口
+    {
+        return hp;
+    }
+    int GetAmmo() const //弹药读取接口
+    {
+        return ammo;
+    }
+
+    void TakeDamage(int damage)  //掉血规则
+    {
+        if( damage >= hp )
+        {
+            hp = 0;
+            return ;
+        }
+        else if( damage <= 0 )
+        {
+            return;
+        }
+        else
+        {
+            hp = hp - damage;
+        }
+    }
+
+    bool TryConsumeAmmo()  //弹药消耗规则
+    {
+        if( ammo <= 0 )
+        {
+            return false;
+        }
+        else
+        {
+            ammo--;
+            return true;
+        }
+
+
+    }
     int id;
     Team team;
     Position position;
+    int actionPoints;
+
+    private:
     int hp;
     int ammo;
-    int actionPoints;
 };
 
 struct Base //基地各项数据
@@ -113,8 +166,8 @@ void PrintRobots(const std::vector<Robot>& robots)
         }
         std::cout << "robot " << robotcopy.id << std::endl;
         std::cout << "position: (" << robotcopy.position.x << ", " << robotcopy.position.y << ")" << std::endl;
-        std::cout << "robot HP: " << robotcopy.hp << std::endl;
-        std::cout << "robot Ammo: " << robotcopy.ammo << std::endl;
+        std::cout << "robot HP: " << robotcopy.GetHp() << std::endl;
+        std::cout << "robot Ammo: " << robotcopy.GetAmmo() << std::endl;
         std::cout << "robot Action Points: " << robotcopy.actionPoints << std::endl;
     }
 }
@@ -256,14 +309,14 @@ bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<B
 {
     for (const Robot& robotcopy : robots)
     {
-        if(!(robotcopy.hp > 0 && robotcopy.ammo >= 0 && robotcopy.actionPoints >= 0 ))
+        if(!(robotcopy.GetHp() > 0 && robotcopy.GetAmmo() >= 0 && robotcopy.actionPoints >= 0 ))
         {
-            if(!(robotcopy.hp > 0 ))
+            if(!(robotcopy.GetHp() > 0 ))
             {
                 std::cerr << "The robot's hp should be larger than 0. " << std::endl;
                 return false;
             }
-            if(!(robotcopy.ammo >= 0 ))
+            if(!(robotcopy.GetAmmo() >= 0 ))
             {
                 std::cerr << "The ammo should be a natural number. " << std::endl;
                 return false;
