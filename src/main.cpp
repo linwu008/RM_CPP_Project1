@@ -148,27 +148,27 @@ std::vector<Outpost> CreateOutposts();  //前哨站vector
 class Clock  //类：对局时钟：1 tick = 0.1s ，对局时长420s , 以10tick为一个回合
 {
     public:
-    int GetTick() const
+    int GetTick() const  //读取tick数
     {
         return tick;
     }
 
-    double GetGoingTime() const
+    double GetGoingTime() const  //读取已进行对局时间
     {
         return tick * 0.1;
     }
 
-    double GetRemainingTime() const
+    double GetRemainingTime() const  //读取剩余对局时间
     {
         return (4200 - tick) * 0.1;
     }
 
-    bool IsGameOver() const
+    bool IsGameOver() const  //判断对局结束
     {
         return tick >= 4200;
     }
 
-    int GetTurn() const
+    int GetTurn() const  //输出回合数
     {
         if( tick >= 4200 )
         {
@@ -180,7 +180,7 @@ class Clock  //类：对局时钟：1 tick = 0.1s ，对局时长420s , 以10tic
         }
     }
 
-    bool AdvanceTick()
+    bool AdvanceTick()  //使tick数随时间增加
     {
         if (tick < 4200 )  //仍在对局中
         {
@@ -210,7 +210,7 @@ bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<B
 
 bool CheckInitialOverlap(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //检查是否重叠
 
-bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots);
+bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots);  //推进对局
 
                                 /*主函数*/
 
@@ -538,8 +538,6 @@ bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots)
                 robotcopy.ResetActionPoints();
             }
         }
-
-
     }
     return true;
 }

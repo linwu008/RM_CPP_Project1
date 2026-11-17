@@ -1,2 +1,15 @@
-/build/
-*.exe
+# Publish only README, this ignore file, and C++ source files.
+/*
+!/.gitignore
+!/README.md
+!/src/
+
+/src/**
+!/src/**/
+!/src/**/*.cpp
+!/src/**/*.cc
+!/src/**/*.cxx
+!/src/**/*.h
+!/src/**/*.hpp
+!/src/**/*.ipp
+!/src/**/*.tpp
