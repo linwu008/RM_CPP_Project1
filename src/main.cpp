@@ -1,11 +1,19 @@
 #include <iostream>
 #include <vector>
 #include <cstddef>
+#include <memory>
+#include <cmath>
 
 struct Position  //位置
 {
     double x;
     double y;
+};
+
+struct Obstacle  //障碍
+{
+    Position topLeft;
+    Position bottomRight;
 };
 
 enum class Team  //阵营
@@ -21,11 +29,11 @@ enum class RobotType  //机器人类型
     Sentry
 };
 
-class Robot  //类：机器人各项数据
+class Robot  //父类：机器人各项数据
 {
     public:
     Robot(int robotId, Team robotTeam, RobotType robotType, Position robotPosition,
-          int initialHp, int initialAmmo, int initialActionPoints)
+          int initialHp, int initialAmmo, double initialActionPoints)
     /*定义构造机器人函数*/
         : id(robotId),
           team(robotTeam),
@@ -50,7 +58,7 @@ class Robot  //类：机器人各项数据
     {
         return ammo;
     }
-    int GetActionPoints() const //行动点读取接口
+    double GetActionPoints() const //行动点读取接口，保留小数移动额度
     {
         return actionPoints;
     }
@@ -95,18 +103,31 @@ class Robot  //类：机器人各项数据
         }
     }
 
-    bool TryConsumeActionPoints(int cost)  //行动点规则
+    bool TryConsumeActionPoints(double cost)  //按实际移动距离消耗行动点
     {
-        if( cost < 0 || cost > actionPoints )
+        constexpr double epsilon = 1e-9;  //容纳小数计算产生的微小误差
+        if (!std::isfinite(cost) || !std::isfinite(actionPoints) ||
+            cost < 0 || actionPoints < 0 || cost > actionPoints + epsilon)
         {
             return false;
         }
         else
         {
             actionPoints = actionPoints - cost;
+            if (actionPoints < 0)
+            {
+                actionPoints = 0;  //修正误差范围内的微小负值
+            }
             return true;
         }
     }
+
+    virtual int GetShotDamage() const  //单发基础伤害（17mm）
+    {
+        return 20;
+    }
+
+    virtual ~Robot() = default;  //虚析构：销毁具体机器人对象
 
     int id;
     Team team;
@@ -116,10 +137,61 @@ class Robot  //类：机器人各项数据
     int hp;
     int MaxHp;
     int ammo;
-    int actionPoints;
-    int MaxActionPoints;
+    double actionPoints;
+    double MaxActionPoints;
     RobotType type;
 };
+
+using RobotList = std::vector<std::unique_ptr<Robot>>;
+
+class HeavyRobot : public Robot  //子类：重装机器人
+{
+
+public:
+    HeavyRobot(Team robotTeam, Position robotPosition)
+    : Robot(1, robotTeam, RobotType::Heavy, robotPosition, 400, 0, 3.0)
+    {
+    }
+
+
+    int GetShotDamage() const override  //重装42mm弹丸的单发基础伤害
+    {
+        return 200;
+    }
+
+};
+
+class InfantryRobot : public Robot  //子类：步兵机器人
+{
+public:
+    InfantryRobot(Team robotTeam, Position robotPosition)
+    : Robot(3, robotTeam, RobotType::Infantry, robotPosition, 200, 0, 3.0)
+    {
+    }
+
+    int GetShotDamage() const override  //步兵17mm弹丸的单发基础伤害
+    {
+        return 20;
+    }
+};
+
+class SentryRobot : public Robot  //子类：哨兵机器人
+{
+public:
+    SentryRobot(Team robotTeam, Position robotPosition)
+    : Robot(7, robotTeam, RobotType::Sentry, robotPosition, 400, 300, 3.0)
+    {
+    }
+
+    int GetShotDamage() const override  //哨兵17mm弹丸的单发基础伤害
+    {
+        return 20;
+    }
+};
+
+Robot* FindRobot(RobotList& robots, Team team, int id);  //查询机器人对象
+
+
 
 struct Base //基地数据
 {
@@ -135,9 +207,7 @@ struct Outpost  //前哨站数据
     int hp;
 };
 
-std::vector<Robot> CreateRobots();  //机器人vector
-
-void PrintRobots(const std::vector<Robot>& robots);  //输出机器人数据
+void PrintRobots(const RobotList& robots);  //输出机器人数据
 
 std::vector<Base> CreateBases();  //基地vector
 
@@ -202,15 +272,33 @@ void PrintOutposts(const std::vector<Outpost>& outposts);  //输出前哨站数�
 
 bool IsInsideMap(const Position& position);  //判断是否在地图里面
 
-bool CheckInitialPositions(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //判断初始位置
+bool CheckInitialPositions(const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //判断初始位置
 
-bool CheckUniqueRobotIds(const std::vector<Robot>& robots);  //检查ID重复
+bool CheckUniqueRobotIds(const RobotList& robots);  //检查ID重复
 
-bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //检查初始数据合法性
+bool CheckInitialResources(const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //检查初始数据合法性
 
-bool CheckInitialOverlap(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //检查是否重叠
+bool CheckInitialOverlap(const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //检查是否重叠
 
-bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots);  //推进对局
+bool AdvanceSimulation(Clock& clock, RobotList& robots);  //推进对局
+
+RobotList CreateRobotObjects();  //创建机器人智能指针vector
+
+double GetDistance(const Position& from, const Position& to);  //获取距离
+
+bool TryMoveRobot(Robot& robot, const Position& target, const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts, const std::vector<Obstacle>& obstacles);  //尝试移动
+
+bool IsRobotPositionOccupied(const Position& target, const Robot& movingRobot,const RobotList& robots);
+
+bool IsFacilityPositionOccupied(const Position& target, const std::vector<Base>& bases, const std::vector<Outpost>& outposts);  //检查固定设施占位
+
+bool IsInsideObstacle(const Position& point, const Obstacle& obstacle);  //检查是否在障碍物内
+
+bool CrossesVerticalEdge(const Position& from, const Position& to, double edgeX, double topY, double bottomY);  //与一条垂直边相交
+
+bool CrossesHorizontalEdge(const Position& from, const Position& to, double edgeY, double leftX, double rightX);  //与一条水平边相交
+
+bool DoesPathIntersectObstacle(const Position& from, const Position& to, const Obstacle& obstacle);  //检查路径是否与障碍物相交
 
                                 /*主函数*/
 
@@ -220,7 +308,7 @@ int main()
 
     std::vector<Base> bases = CreateBases();
     std::vector<Outpost> outposts = CreateOutposts();
-    std::vector<Robot> robots = CreateRobots();
+    RobotList robots = CreateRobotObjects();
 
     if (CheckInitialPositions(robots, bases, outposts) == false)
     {
@@ -255,10 +343,11 @@ int main()
 
                                 /*调用函数*/
 
-void PrintRobots(const std::vector<Robot>& robots)  //输出机器人数据
+void PrintRobots(const RobotList& robots)  //输出机器人数据
 {
-    for (const Robot& robotcopy : robots)
+    for (const auto& robotPointer : robots)
     {
+        const Robot& robotcopy = *robotPointer;
         if(robotcopy.team == Team::Red)
         {
             std::cout<< "Red";
@@ -286,21 +375,8 @@ void PrintRobots(const std::vector<Robot>& robots)  //输出机器人数据
         std::cout << "robot HP: " << robotcopy.GetHp() << "/" << robotcopy.GetMaxHp() << std::endl;
         std::cout << "robot Ammo: " << robotcopy.GetAmmo() << std::endl;
         std::cout << "robot Action Points: " << robotcopy.GetActionPoints() << std::endl;
+        std::cout << "robot shot damage: " << robotcopy.GetShotDamage() << std::endl;
     }
-}
-
-std::vector<Robot> CreateRobots()
-{
-    /*初始重装、步兵、哨兵*/
-    Robot redHeavy{1, Team::Red, RobotType::Heavy, {1, 7}, 400, 0, 3};
-    Robot blueHeavy{1, Team::Blue, RobotType::Heavy, {27, 8}, 400, 0, 3};
-    Robot redInfantry{3, Team::Red, RobotType::Infantry, {1, 9}, 200, 0, 3};
-    Robot blueInfantry{3, Team::Blue, RobotType::Infantry, {27, 6}, 200, 0, 3};
-    Robot redSentry{7, Team::Red, RobotType::Sentry, {1, 11}, 400, 300, 3};
-    Robot blueSentry{7, Team::Blue, RobotType::Sentry, {27, 4}, 400, 300, 3};
-
-    std::vector<Robot> robots{redHeavy, blueHeavy, redInfantry, blueInfantry, redSentry, blueSentry};
-    return robots;
 }
 
 std::vector<Base> CreateBases()
@@ -355,10 +431,11 @@ bool IsInsideMap(const Position& position)
     return position.x >= 0 && position.x <= 28 && position.y >= 0 && position.y <= 15;
 }
 
-bool CheckInitialPositions(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
+bool CheckInitialPositions(const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
 {
-    for (const Robot& robotcopy : robots)
+    for (const auto& robotPointer : robots)
     {
+        const Robot& robotcopy = *robotPointer;
         if(IsInsideMap(robotcopy.position) == 0)
         {
             if (robotcopy.team == Team::Red)
@@ -405,15 +482,15 @@ bool CheckInitialPositions(const std::vector<Robot>& robots, const std::vector<B
     return true;
 }
 
-bool CheckUniqueRobotIds(const std::vector<Robot>& robots)
+bool CheckUniqueRobotIds(const RobotList& robots)
 {
     for (std::size_t i = 0; i < robots.size(); ++i)
     {
         for (std::size_t j = i + 1; j < robots.size(); ++j)
         {
-            if (robots[i].team == robots[j].team && robots[i].id == robots[j].id)
+            if (robots[i]->team == robots[j]->team && robots[i]->id == robots[j]->id)
             {
-                std::cerr << "repetition in" << robots[i].id << "and" << robots[j].id << std::endl;
+                std::cerr << "repetition in" << robots[i]->id << "and" << robots[j]->id << std::endl;
                 return false;
             }
         }
@@ -423,11 +500,13 @@ bool CheckUniqueRobotIds(const std::vector<Robot>& robots)
     return true;
 }
 
-bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
+bool CheckInitialResources(const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
 {
-    for (const Robot& robotcopy : robots)
+    for (const auto& robotPointer : robots)
     {
-        if(!(robotcopy.GetHp() > 0 && robotcopy.GetAmmo() >= 0 && robotcopy.GetActionPoints() >= 0 ))
+        const Robot& robotcopy = *robotPointer;
+        if(!(robotcopy.GetHp() > 0 && robotcopy.GetAmmo() >= 0 &&
+             std::isfinite(robotcopy.GetActionPoints()) && robotcopy.GetActionPoints() >= 0 ))
         {
             if(!(robotcopy.GetHp() > 0 ))
             {
@@ -439,9 +518,9 @@ bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<B
                 std::cerr << "The ammo should be a natural number. " << std::endl;
                 return false;
             }
-            if(!(robotcopy.GetActionPoints() >= 0 ))
+            if(!std::isfinite(robotcopy.GetActionPoints()) || !(robotcopy.GetActionPoints() >= 0 ))
             {
-                std::cerr << "The actionPoints should be a natural number. " << std::endl;
+                std::cerr << "The actionPoints should be finite and non-negative. " << std::endl;
                 return false;
             }
         }
@@ -476,23 +555,24 @@ bool CheckInitialResources(const std::vector<Robot>& robots, const std::vector<B
     return true;
 }
 
-bool CheckInitialOverlap(const std::vector<Robot>& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
+bool CheckInitialOverlap(const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
 {
     for (std::size_t i = 0; i < robots.size(); ++i)
     {
         for (std::size_t j = i + 1; j < robots.size(); ++j)
         {
-            if (robots[i].position.x == robots[j].position.x && robots[i].position.y == robots[j].position.y)
+            if (robots[i]->position.x == robots[j]->position.x && robots[i]->position.y == robots[j]->position.y)
             {
-                std::cerr << "Overlapping in" << robots[i].id << "and" << robots[j].id << std::endl;
+                std::cerr << "Overlapping in" << robots[i]->id << "and" << robots[j]->id << std::endl;
                 return false;
             }
         }
 
     }
 
-    for (const Robot& robotcopy : robots )
+    for (const auto& robotPointer : robots)
     {
+        const Robot& robotcopy = *robotPointer;
         for ( const Base& basecopy : bases )
         {
             if(robotcopy.position.x == basecopy.position.x && robotcopy.position.y == basecopy.position.y )
@@ -503,8 +583,9 @@ bool CheckInitialOverlap(const std::vector<Robot>& robots, const std::vector<Bas
         }
     }
 
-    for (const Robot& robotcopy : robots)
+    for (const auto& robotPointer : robots)
     {
+        const Robot& robotcopy = *robotPointer;
         for (const Outpost& outpost : outposts)
         {
             if (robotcopy.position.x == outpost.position.x && robotcopy.position.y == outpost.position.y)
@@ -522,7 +603,7 @@ bool CheckInitialOverlap(const std::vector<Robot>& robots, const std::vector<Bas
     return true;
 }
 
-bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots)
+bool AdvanceSimulation(Clock& clock, RobotList& robots)
 {
     int oldTurn = clock.GetTurn();
     if (clock.AdvanceTick() == false)
@@ -531,8 +612,9 @@ bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots)
     }
     if (clock.IsGameOver() == false && clock.GetTurn() != oldTurn)
     {
-        for (Robot& robotcopy : robots)
+        for (auto& robotPointer : robots)
         {
+            Robot& robotcopy = *robotPointer;
             if (robotcopy.GetHp() > 0)
             {
                 robotcopy.ResetActionPoints();
@@ -540,4 +622,188 @@ bool AdvanceSimulation(Clock& clock, std::vector<Robot>& robots)
         }
     }
     return true;
+}
+
+RobotList CreateRobotObjects()
+{
+    RobotList robots;
+
+    robots.push_back(std::make_unique<HeavyRobot>(Team::Red, Position{1, 7}));
+    robots.push_back(std::make_unique<HeavyRobot>(Team::Blue, Position{27, 8}));
+    robots.push_back(std::make_unique<InfantryRobot>(Team::Red, Position{1, 9}));
+    robots.push_back(std::make_unique<InfantryRobot>(Team::Blue, Position{27, 6}));
+    robots.push_back(std::make_unique<SentryRobot>(Team::Red, Position{1, 11}));
+    robots.push_back(std::make_unique<SentryRobot>(Team::Blue, Position{27, 4}));
+
+    return robots;
+}
+
+Robot* FindRobot(RobotList& robots, Team team, int id)
+{
+
+    for (const auto& robotPointer : robots)
+    {
+        if (robotPointer->team == team && robotPointer->id == id)
+        {
+            return robotPointer.get();
+        }
+    }
+
+    return nullptr;
+}
+
+double GetDistance(const Position& from, const Position& to)
+{
+    double dx = to.x - from.x;
+    double dy = to.y - from.y;
+    return std::sqrt(dx * dx + dy * dy);
+
+}
+
+bool TryMoveRobot(Robot& robot, const Position& destination, const RobotList& robots, const std::vector<Base>& bases, const std::vector<Outpost>& outposts, const std::vector<Obstacle>& obstacles)
+{
+    if (robot.GetHp() <= 0)
+    {
+        std::cerr << "Robot " << robot.id << " has been destroyed " << std::endl;
+        return false;
+    }
+    if( !IsInsideMap(destination))
+    {
+        std::cerr << "(" << destination.x << ", " << destination.y << ") is outside the map." << std::endl;
+        return false;
+    }
+
+    if (IsRobotPositionOccupied(destination, robot, robots))
+    {
+        std::cerr << "Destination (" << destination.x << ", " << destination.y
+                  << ") is occupied by another robot." << std::endl;
+        return false;
+    }
+    if (IsFacilityPositionOccupied(destination, bases, outposts))
+    {
+        std::cerr << "Destination (" << destination.x << ", " << destination.y
+                  << ") is occupied by a base or outpost." << std::endl;
+        return false;
+    }
+    for (const Obstacle& obstacle : obstacles)
+    {
+        if (DoesPathIntersectObstacle(robot.position, destination, obstacle))
+        {
+            std::cerr << "Destination (" << destination.x << ", " << destination.y << ") intersects with an obstacle." << std::endl;
+            return false;
+        }
+    }
+
+    double distance = GetDistance(robot.position, destination);
+
+    if (robot.TryConsumeActionPoints(distance) == false)
+    {
+        std::cerr << "Robot " << robot.id << " does not have enough action points to move to (" << destination.x << ", " << destination.y << ")." << std::endl;
+        return false;
+    }
+
+    robot.position = destination;
+
+    return true;
+}
+
+bool IsRobotPositionOccupied(const Position& target, const Robot& movingRobot, const RobotList& robots)
+{
+    for (const auto& robotPointer : robots)
+    {
+        if (robotPointer.get() == &movingRobot)
+        {
+            continue;
+        }
+        if (robotPointer->position.x == target.x && robotPointer->position.y == target.y)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsFacilityPositionOccupied(const Position& target, const std::vector<Base>& bases, const std::vector<Outpost>& outposts)
+{
+    for (const Base& base : bases)
+    {
+        if (base.position.x == target.x && base.position.y == target.y)
+        {
+            return true;
+        }
+    }
+    for (const Outpost& outpost : outposts)
+    {
+        if (outpost.position.x == target.x && outpost.position.y == target.y)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+bool IsInsideObstacle(const Position& point, const Obstacle& obstacle)
+{
+    if (point.x >= obstacle.topLeft.x && point.x <= obstacle.bottomRight.x && point.y >= obstacle.topLeft.y && point.y <= obstacle.bottomRight.y)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool CrossesVerticalEdge(const Position& fromX, const Position& toX, double edgeX, double topY, double bottomY)
+{
+    double dx = toX.x - fromX.x;
+    if (dx == 0)
+    {
+        return false;
+    }
+    double ratio = (edgeX - fromX.x) / dx;
+
+    if (ratio < 0 || ratio > 1)
+    {
+        return false;
+    }
+
+    double intersectionY = fromX.y + ratio * (toX.y - fromX.y);
+
+    return intersectionY >= topY && intersectionY <= bottomY;
+}
+
+bool CrossesHorizontalEdge(const Position& from, const Position& to, double edgeY,
+                           double leftX, double rightX)
+{
+    double dy = to.y - from.y;
+    if (dy == 0)
+    {
+        return false;
+    }
+    double ratio = (edgeY - from.y) / dy;
+    if (ratio < 0 || ratio > 1)
+    {
+        return false;
+    }
+    double intersectionX = from.x + ratio * (to.x - from.x);
+    return intersectionX >= leftX && intersectionX <= rightX;
+}
+
+bool DoesPathIntersectObstacle(const Position& from, const Position& to, const Obstacle& obstacle)
+{
+    if (IsInsideObstacle(from, obstacle) || IsInsideObstacle(to, obstacle))
+    {
+        return true;
+    }
+
+    if (CrossesVerticalEdge(from, to, obstacle.topLeft.x, obstacle.topLeft.y, obstacle.bottomRight.y) ||
+        CrossesVerticalEdge(from, to, obstacle.bottomRight.x, obstacle.topLeft.y, obstacle.bottomRight.y) ||
+        CrossesHorizontalEdge(from, to, obstacle.topLeft.y, obstacle.topLeft.x, obstacle.bottomRight.x) ||
+        CrossesHorizontalEdge(from, to, obstacle.bottomRight.y, obstacle.topLeft.x, obstacle.bottomRight.x))
+    {
+        return true;
+    }
+
+    return false;
 }
